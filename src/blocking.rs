@@ -24,10 +24,12 @@ use bitcoin::consensus::{deserialize, serialize, Decodable};
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::hex::{DisplayHex, FromHex};
 use bitcoin::{
-    block::Header as BlockHeader, Block, BlockHash, MerkleBlock, Script, Transaction, Txid,
+    block::Header as BlockHeader, Address, Block, BlockHash, MerkleBlock, Script, Transaction, Txid,
 };
 
-use crate::{BlockStatus, BlockSummary, Builder, Error, MerkleProof, OutputStatus, Tx, TxStatus};
+use crate::{
+    BlockStatus, BlockSummary, Builder, Error, MerkleProof, OutputStatus, Tx, TxStatus, Utxo,
+};
 
 #[derive(Debug, Clone)]
 pub struct BlockingClient {
@@ -331,6 +333,17 @@ impl BlockingClient {
             None => "/blocks".to_string(),
         };
         self.get_response_json(&path)
+    }
+
+    /// Get the list of unspent transaction outputs associated with the address.
+    pub async fn get_address_utxo(&self, address: Address) -> Result<Vec<Utxo>, Error> {
+        self.get_response_json(&format!("address/{}/utxo", address))
+    }
+
+    /// Get transaction history for the specified address/scripthash, sorted with newest first. Returns up to 50 mempool transactions plus the first 25 confirmed transactions.
+    /// You can request more confirmed transactions using an after_txid query parameter.
+    pub async fn get_address_txs(&self, address: Address) -> Result<Vec<Utxo>, Error> {
+        self.get_response_json(&format!("address/{}/txs", address))
     }
 }
 

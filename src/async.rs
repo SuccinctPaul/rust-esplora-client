@@ -18,15 +18,16 @@ use bitcoin::consensus::{deserialize, serialize};
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::hex::{DisplayHex, FromHex};
 use bitcoin::{
-    block::Header as BlockHeader, Block, BlockHash, MerkleBlock, Script, Transaction, Txid,
+    block::Header as BlockHeader, Address, Block, BlockHash, MerkleBlock, Script, Transaction, Txid,
 };
-
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 
 use reqwest::{header, Client, StatusCode};
 
-use crate::{BlockStatus, BlockSummary, Builder, Error, MerkleProof, OutputStatus, Tx, TxStatus};
+use crate::{
+    BlockStatus, BlockSummary, Builder, Error, MerkleProof, OutputStatus, Tx, TxStatus, Utxo,
+};
 
 #[derive(Debug, Clone)]
 pub struct AsyncClient {
@@ -67,6 +68,55 @@ impl AsyncClient {
     /// build an async client from the base url and [`Client`]
     pub fn from_client(url: String, client: Client) -> Self {
         AsyncClient { url, client }
+    }
+
+    /// Get transaction history for the specified address/scripthash, sorted with newest first. Returns up to 50 mempool transactions plus the first 25 confirmed transactions.
+    /// TODO: You can request more confirmed transactions using an after_txid query parameter.
+    pub async fn get_address_txs(&self, addr: &Address) -> Result<Vec<Transaction>, Error> {
+        let resp = self
+            .client
+            .get(&format!("{}/address/{}/txs", self.url, addr.to_string()))
+            .send()
+            .await?;
+
+        if let StatusCode::NOT_FOUND = resp.status() {
+            return Ok(vec![]);
+        }
+
+        if resp.status().is_server_error() || resp.status().is_client_error() {
+            Err(Error::HttpResponse {
+                status: resp.status().as_u16(),
+                message: resp.text().await?,
+            })
+        } else {
+            Ok(resp.json::<Vec<Transaction>>().await?)
+        }
+    }
+
+    /// Get the list of unspent transaction outputs associated with the address.
+    pub async fn get_address_utxo(&self, address: Address) -> Result<Vec<Utxo>, Error> {
+        let resp = self
+            .client
+            .get(&format!(
+                "{}/address/{}/utxo",
+                self.url,
+                address.to_string()
+            ))
+            .send()
+            .await?;
+
+        if let StatusCode::NOT_FOUND = resp.status() {
+            return Ok(vec![]);
+        }
+
+        if resp.status().is_server_error() || resp.status().is_client_error() {
+            Err(Error::HttpResponse {
+                status: resp.status().as_u16(),
+                message: resp.text().await?,
+            })
+        } else {
+            Ok(resp.json::<Vec<Utxo>>().await?)
+        }
     }
 
     /// Get a [`Transaction`] option given its [`Txid`]
@@ -448,5 +498,19 @@ impl AsyncClient {
     /// Get the underlying [`Client`].
     pub fn client(&self) -> &Client {
         &self.client
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use bitcoin::Network;
+
+    #[test]
+    fn test_get_address() {
+        let addr = Address::from_str("bc1q7cyrfmck2ffu2ud3rn5l5a8yv6f0chkp0zpemf")
+            .expect("a valid address")
+            .require_network(Network::Bitcoin)
+            .unwrap();
     }
 }
