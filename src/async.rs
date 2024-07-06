@@ -72,7 +72,7 @@ impl AsyncClient {
 
     /// Get transaction history for the specified address/scripthash, sorted with newest first. Returns up to 50 mempool transactions plus the first 25 confirmed transactions.
     /// TODO: You can request more confirmed transactions using an after_txid query parameter.
-    pub async fn get_address_txs(&self, addr: &Address) -> Result<Vec<Transaction>, Error> {
+    pub async fn get_address_txs(&self, addr: &str) -> Result<Vec<Transaction>, Error> {
         let resp = self
             .client
             .get(&format!("{}/address/{}/txs", self.url, addr.to_string()))
@@ -94,7 +94,7 @@ impl AsyncClient {
     }
 
     /// Get the list of unspent transaction outputs associated with the address.
-    pub async fn get_address_utxo(&self, address: Address) -> Result<Vec<Utxo>, Error> {
+    pub async fn get_address_utxo(&self, address: &str) -> Result<Vec<Utxo>, Error> {
         let resp = self
             .client
             .get(&format!(
